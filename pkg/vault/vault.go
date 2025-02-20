@@ -3,9 +3,10 @@ package vault
 import (
 	"encoding/base64"
 	"fmt"
-	"github.com/hashicorp/vault/api"
 	"log"
 	"strconv"
+
+	"github.com/hashicorp/vault/api"
 )
 
 const (
@@ -16,15 +17,15 @@ type VaultService struct {
 	api *api.Client
 }
 
-func NewVaultService() *VaultService {
+func NewVaultService(vaultAddress string) *VaultService {
 	return &VaultService{
-		api: New(),
+		api: New(vaultAddress),
 	}
 }
 
-func New() *api.Client {
+func New(address string) *api.Client {
 	config := api.DefaultConfig()
-	config.Address = "http://localhost:8200"
+	config.Address = address
 	client, err := api.NewClient(config)
 	if err != nil {
 		log.Fatalf("Ошибка создания клиента: %v", err)
@@ -34,18 +35,7 @@ func New() *api.Client {
 	return client
 }
 
-// InitKV Включение KV Engine для хранения счетчика
-func (v *VaultService) InitKV() error {
-	_, err := v.api.Logical().Write("sys/mounts/secret", map[string]interface{}{
-		"type":    "kv",
-		"options": map[string]string{"version": "2"},
-	})
-	if err != nil {
-		log.Printf("KV уже включён или ошибка: %v", err)
-	}
-	return err
-}
-
+// GetCounter получение  счетчика из kv vault
 func (v *VaultService) GetCounter() (int, error) {
 	secret, err := v.api.Logical().Read("secret/data/dek-counter")
 	if err != nil || secret == nil || secret.Data["data"] == nil {
@@ -63,6 +53,7 @@ func (v *VaultService) GetCounter() (int, error) {
 	return count, nil
 }
 
+// перезаписывание счетчика в vault
 func (v *VaultService) setCounter(count int) error {
 	_, err := v.api.Logical().Write("secret/data/dek-counter", map[string]interface{}{
 		"data": map[string]interface{}{
@@ -76,6 +67,7 @@ func (v *VaultService) setCounter(count int) error {
 	return nil
 }
 
+// NewDEK создание нового DEK
 func (v *VaultService) NewDEK(token string) (string, error) {
 	newDEK := "dek-" + token
 	_, err := v.api.Logical().Write("transit/keys/"+newDEK, nil)
@@ -86,7 +78,8 @@ func (v *VaultService) NewDEK(token string) (string, error) {
 	return newDEK, nil
 }
 
-func (v *VaultService) DecryptWithToken(card, dek string) (string, error) {
+// DecryptCard расшифрока карты с помощью ключа  dek
+func (v *VaultService) DecryptCard(card, dek string) (string, error) {
 	resp, err := v.api.Logical().Write("transit/decrypt/"+dek, map[string]interface{}{
 		"ciphertext": card,
 	})
@@ -101,7 +94,8 @@ func (v *VaultService) DecryptWithToken(card, dek string) (string, error) {
 	return string(plaintext), nil
 }
 
-func (v *VaultService) EncryptWithToken(count int, card, dek string) (string, error) {
+// EncryptCard шифрование карты текущим  DEK
+func (v *VaultService) EncryptCard(count int, card, dek string) (string, error) {
 	// Шифрование текущим DEK
 	resp, err := v.api.Logical().Write("transit/encrypt/"+dek, map[string]interface{}{
 		"plaintext": base64.StdEncoding.EncodeToString([]byte(card)),
@@ -110,7 +104,6 @@ func (v *VaultService) EncryptWithToken(count int, card, dek string) (string, er
 		return "", err
 	}
 	// Увеличиваем счетчик
-	count++
 	log.Printf("Операция %d из %d для DEK %s\n", count, MaxOperations, dek)
 	err = v.setCounter(count)
 	if err != nil {
