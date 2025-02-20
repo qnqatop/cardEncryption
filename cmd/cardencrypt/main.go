@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"encryptCard/pkg/cardStorage"
+	"encryptCard/pkg/cardstorage"
 	"encryptCard/pkg/utils"
 )
 
@@ -20,8 +20,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// инициализация cardStorage
-	cs := cardStorage.New("http://localhost:8200", currentDEK, MaxOperations)
+	// инициализация cardencrypt
+	cs := cardstorage.New("http://localhost:8200", currentDEK, MaxOperations)
 
 	// Пример шифрования нескольких карт
 	cards := []string{"1234-5678-9012-3456", "9876-5432-1098-7654", "1111-2222-3333-4444"}

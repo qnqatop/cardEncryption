@@ -1,4 +1,4 @@
-package cardStorage
+package cardstorage
 
 import (
 	"fmt"
